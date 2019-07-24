@@ -11,12 +11,17 @@ class CPU:
         """Construct a new CPU."""
         self.ram = [0b00000000] * 256
         self.reg = [0b00000000] * 8
+        self.sp = 243
         self.pc = 0
-        self.running = True
+        self.running = False
         self.branch_table = {
             f"{0b10000010}": self.handle_0b10000010,
             f"{0b01000111}": self.handle_0b01000111,
             f"{0b10100010}": self.handle_0b10100010,
+            f"{0b01000101}": self.handle_0b01000101,
+            f"{0b01000110}": self.handle_0b01000110,
+            f"{0b01010000}": self.handle_0b01010000,
+            f"{0b01010100}": self.handle_0b01010100,
             f"{0b00000001}": self.handle_0b00000001,
         }
 
@@ -32,6 +37,21 @@ class CPU:
         self.alu("MUL", self.ram_read(self.pc + 1),
                  self.ram_read(self.pc + 2))
         self.pc = self.pc + 3
+
+    def handle_0b01000101(self):
+        self.PUSH(self.ram_read(self.pc + 1))
+        self.pc = self.pc + 2
+
+    def handle_0b01000110(self):
+        self.POP(self.ram_read(self.pc + 1))
+        self.pc = self.pc + 2
+
+    def handle_0b01010000(self):
+        self.CALL(self.ram_read(self.pc + 1))
+        self.pc = self.ram[self.sp]
+
+    def handle_0b01010100(self):
+        self.JMP(self.ram_read(self.pc + 1))
 
     def handle_0b00000001(self):
         self.running = False
@@ -83,6 +103,24 @@ class CPU:
     def PRN(self, index):
         print(self.reg[index])
 
+    def PUSH(self, index):
+        self.sp = self.sp - 1
+        self.ram[self.sp] = self.reg[index]
+
+    def POP(self, index):
+        self.LDI(index, self.ram[self.sp])
+        self.ram[self.sp] = 0b00000000
+        self.sp = self.sp + 1
+
+    def CALL(self, index):
+        self.PUSH(self.pc + 2)
+        self.pc = self.reg[index]
+        command = self.ram[self.pc]
+        self.branch_table[f"{command}"]()
+
+    def JMP(self, index):
+        self.pc = self.reg[index]
+
     def trace(self):
         """
         Handy function to print out the CPU state. You might want to call this
@@ -105,7 +143,9 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
+        self.running = True
 
         while self.running:
             command = self.ram[self.pc]
+            # print(command)
             self.branch_table[f"{command}"]()
