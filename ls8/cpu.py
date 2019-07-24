@@ -12,6 +12,29 @@ class CPU:
         self.ram = [0b00000000] * 256
         self.reg = [0b00000000] * 8
         self.pc = 0
+        self.running = True
+        self.branch_table = {
+            f"{0b10000010}": self.handle_0b10000010,
+            f"{0b01000111}": self.handle_0b01000111,
+            f"{0b10100010}": self.handle_0b10100010,
+            f"{0b00000001}": self.handle_0b00000001,
+        }
+
+    def handle_0b10000010(self):
+        self.LDI(self.ram[self.pc + 1], self.ram[self.pc + 2])
+        self.pc = self.pc + 3
+
+    def handle_0b01000111(self):
+        self.PRN(self.ram_read(self.pc + 1))
+        self.pc = self.pc + 2
+
+    def handle_0b10100010(self):
+        self.alu("MUL", self.ram_read(self.pc + 1),
+                 self.ram_read(self.pc + 2))
+        self.pc = self.pc + 3
+
+    def handle_0b00000001(self):
+        self.running = False
 
     def ram_read(self, index):
         return self.ram[index]
@@ -82,19 +105,7 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        running = True
 
-        while running:
+        while self.running:
             command = self.ram[self.pc]
-            if command == 0b10000010:
-                self.LDI(self.ram[self.pc + 1], self.ram[self.pc + 2])
-                self.pc = self.pc + 3
-            elif command == 0b01000111:
-                self.PRN(self.ram_read(self.pc + 1))
-                self.pc = self.pc + 2
-            elif command == 0b10100010:
-                self.alu("MUL", self.ram_read(self.pc + 1),
-                         self.ram_read(self.pc + 2))
-                self.pc = self.pc + 3
-            elif command == 0b00000001:
-                running = False
+            self.branch_table[f"{command}"]()
