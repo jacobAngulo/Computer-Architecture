@@ -15,58 +15,79 @@ class CPU:
         self.pc = 0
         self.running = False
         self.branch_table = {
-            f"{0b10000010}": self.opcode_LDI,
-            f"{0b01000111}": self.opcode_PRN,
-            f"{0b10100010}": self.opcode_MUL,
-            f"{0b01000101}": self.opcode_PUSH,
-            f"{0b01000110}": self.opcode_POP,
-            f"{0b01010000}": self.opcode_CALL,
-            f"{0b01010100}": self.opcode_JMP,
-            f"{0b10100000}": self.opcode_ADD,
-            f"{0b00000001}": self.opcode_HLT,
+            f"{0b10000010}": self.LDI,
+            f"{0b01000111}": self.PRN,
+            f"{0b10100010}": self.MUL,
+            f"{0b01000101}": self.PUSH,
+            f"{0b01000110}": self.POP,
+            f"{0b01010000}": self.CALL,
+            # f"{0b01010100}": self.JMP,
+            f"{0b00010001}": self.RET,
+            f"{0b10100000}": self.ADD,
+            f"{0b00000001}": self.HLT,
         }
 
-    def opcode_LDI(self):
-        self.LDI(self.ram[self.pc + 1], self.ram[self.pc + 2])
+    def LDI(self):
+        operand_a = self.ram_read(self.pc + 1)
+        operand_b = self.ram_read(self.pc + 2)
+        self.reg_write(operand_a, operand_b)
         self.pc = self.pc + 3
 
-    def opcode_PRN(self):
-        self.PRN(self.ram_read(self.pc + 1))
+    def PRN(self):
+        operand_a = self.ram_read(self.pc + 1)
+        print(self.reg_read(operand_a))
         self.pc = self.pc + 2
 
-    def opcode_ADD(self):
-        self.alu("ADD", self.ram_read(self.pc + 1),
-                 self.ram_read(self.pc + 2))
+    def ADD(self):
+        operand_a = self.ram_read(self.pc + 1)
+        operand_b = self.ram_read(self.pc + 2)
+        self.alu("ADD", operand_a, operand_b)
         self.pc = self.pc + 3
 
-    def opcode_MUL(self):
-        self.alu("MUL", self.ram_read(self.pc + 1),
-                 self.ram_read(self.pc + 2))
+    def MUL(self):
+        operand_a = self.ram_read(self.pc + 1)
+        operand_b = self.ram_read(self.pc + 2)
+        self.alu("MUL", operand_a, operand_b)
         self.pc = self.pc + 3
 
-    def opcode_PUSH(self):
-        self.PUSH(self.ram_read(self.pc + 1))
+    def PUSH(self):
+        operand_a = self.ram_read(self.pc + 1)
+        self.sp = self.sp - 1
+        self.ram_write(self.sp, self.reg_read(operand_a))
         self.pc = self.pc + 2
 
-    def opcode_POP(self):
-        self.POP(self.ram_read(self.pc + 1))
+    def POP(self):
+        operand_a = self.ram_read(self.pc + 1)
+        stack_apex = self.ram_read(self.sp)
+        self.reg_write(operand_a, stack_apex)
+        self.sp = self.sp + 1
         self.pc = self.pc + 2
 
-    def opcode_CALL(self):
-        self.CALL(self.ram_read(self.pc + 1))
-        self.pc = self.ram[self.sp]
+    def CALL(self):
+        operand_a = self.ram_read(self.pc + 1)
+        operand_b = self.pc + 2
+        self.ram_write(self.sp, operand_b)
+        self.pc = self.reg_read(operand_a)
 
-    def opcode_JMP(self):
-        self.JMP(self.ram_read(self.pc + 1))
+    def RET(self):
+        self.pc = self.ram_read(self.sp)
+        self.sp = self.sp + 1
+        pass
 
-    def opcode_HLT(self):
+    def HLT(self):
         self.running = False
 
-    def ram_read(self, index):
-        return self.ram[index]
+    def ram_read(self, address):
+        return self.ram[address]
 
-    def ram_write(self, index, value):
-        self.ram[index] = value
+    def ram_write(self, address, value):
+        self.ram[address] = value
+
+    def reg_read(self, register):
+        return self.reg[register]
+
+    def reg_write(self, register, value):
+        self.reg[register] = value
 
     def load(self):
         """Load a program into memory."""
@@ -102,32 +123,6 @@ class CPU:
             self.reg[reg_a] *= self.reg[reg_b]
         else:
             raise Exception("Unsupported ALU operation")
-
-    def LDI(self, operand_a, operand_b):
-        self.reg[operand_a] = operand_b
-
-    def PRN(self, index):
-        print(self.reg[index])
-
-    def PUSH(self, operand_a):
-        self.sp = self.sp - 1
-        self.ram[self.sp] = self.reg[operand_a]
-
-    def POP(self, operand_a):
-        self.LDI(operand_a, self.ram[self.sp])
-        self.ram[self.sp] = 0b00000000
-        self.sp = self.sp + 1
-
-    def CALL(self, operand_a):
-        # self.PUSH(self.pc + 2)
-        # self.sp = self.sp - 1
-        # self.ram[self.sp] = self.pc + 2
-        self.pc = self.reg[operand_a]
-        command = self.ram[self.pc]
-        self.branch_table[f"{command}"]()
-
-    def JMP(self, operand_a):
-        self.pc = self.reg[operand_a]
 
     def trace(self):
         """
