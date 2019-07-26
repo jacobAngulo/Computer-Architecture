@@ -13,66 +13,86 @@ class CPU:
         self.reg = [0] * 8
         self.sp = self.reg[7]
         self.pc = 0
+        self.fl = 0b00000000  # 0000000LGE
+        self.opcode = self.ram_read(self.pc)
+        self.operand_a = self.ram_read(self.pc + 1)
+        self.operand_b = self.ram_read(self.pc + 2)
         self.running = False
         self.branch_table = {
             f"{0b10000010}": self.LDI,
             f"{0b01000111}": self.PRN,
+            f"{0b10100000}": self.ADD,
+            f"{0b10100111}": self.CMP,
             f"{0b10100010}": self.MUL,
+            f"{0b10000100}": self.ST,
             f"{0b01000101}": self.PUSH,
             f"{0b01000110}": self.POP,
             f"{0b01010000}": self.CALL,
-            # f"{0b01010100}": self.JMP,
+            f"{0b01010100}": self.JMP,
+            f"{0b01010101}": self.JEQ,
+            f"{0b01010110}": self.JNE,
             f"{0b00010001}": self.RET,
-            f"{0b10100000}": self.ADD,
             f"{0b00000001}": self.HLT,
         }
 
     def LDI(self):
-        operand_a = self.ram_read(self.pc + 1)
-        operand_b = self.ram_read(self.pc + 2)
-        self.reg_write(operand_a, operand_b)
+        self.reg_write(self.operand_a, self.operand_b)
         self.pc = self.pc + 3
 
     def PRN(self):
-        operand_a = self.ram_read(self.pc + 1)
-        print(self.reg_read(operand_a))
+        print(self.reg_read(self.operand_a))
         self.pc = self.pc + 2
 
     def ADD(self):
-        operand_a = self.ram_read(self.pc + 1)
-        operand_b = self.ram_read(self.pc + 2)
-        self.alu("ADD", operand_a, operand_b)
+        self.alu("ADD", self.operand_a, self.operand_b)
         self.pc = self.pc + 3
 
     def MUL(self):
-        operand_a = self.ram_read(self.pc + 1)
-        operand_b = self.ram_read(self.pc + 2)
-        self.alu("MUL", operand_a, operand_b)
+        self.alu("MUL", self.operand_a, self.operand_b)
+        self.pc = self.pc + 3
+
+    def CMP(self):
+        self.alu("CMP", self.operand_a, self.operand_b)
         self.pc = self.pc + 3
 
     def PUSH(self):
-        operand_a = self.ram_read(self.pc + 1)
         self.sp = self.sp - 1
-        self.ram_write(self.sp, self.reg_read(operand_a))
+        self.ram_write(self.sp, self.reg_read(self.operand_a))
         self.pc = self.pc + 2
 
     def POP(self):
-        operand_a = self.ram_read(self.pc + 1)
         stack_apex = self.ram_read(self.sp)
-        self.reg_write(operand_a, stack_apex)
+        self.reg_write(self.operand_a, stack_apex)
         self.sp = self.sp + 1
         self.pc = self.pc + 2
 
+    def ST(self):
+        self.ram_write(self.operand_a, self.operand_b)
+        self.pc = self.pc + 3
+
     def CALL(self):
-        operand_a = self.ram_read(self.pc + 1)
-        operand_b = self.pc + 2
-        self.ram_write(self.sp, operand_b)
-        self.pc = self.reg_read(operand_a)
+        return_address = self.pc + 2
+        self.ram_write(self.sp, return_address)
+        self.pc = self.reg_read(self.operand_a)
+
+    def JMP(self):
+        self.pc = self.reg_read(self.operand_a)
+
+    def JEQ(self):
+        if self.fl == 0b00000001:
+            self.pc = self.reg_read(self.operand_a)
+        else:
+            self.pc = self.pc + 2
+
+    def JNE(self):
+        if self.fl != 0b00000001:
+            self.pc = self.reg_read(self.operand_a)
+        else:
+            self.pc = self.pc + 2
 
     def RET(self):
         self.pc = self.ram_read(self.sp)
         self.sp = self.sp + 1
-        pass
 
     def HLT(self):
         self.running = False
@@ -121,6 +141,13 @@ class CPU:
             self.reg[reg_a] += self.reg[reg_b]
         elif op == "MUL":
             self.reg[reg_a] *= self.reg[reg_b]
+        elif op == 'CMP':
+            if self.reg[reg_a] == self.reg[reg_b]:
+                self.fl = 0b00000001
+            elif self.reg[reg_a] > self.reg[reg_b]:
+                self.fl = 0b00000010
+            elif self.reg[reg_a] < self.reg[reg_b]:
+                self.fl = 0b00000100
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -149,6 +176,7 @@ class CPU:
         self.running = True
 
         while self.running:
-            command = self.ram[self.pc]
-            # print(command)
-            self.branch_table[f"{command}"]()
+            self.opcode = self.ram_read(self.pc)
+            self.operand_a = self.ram_read(self.pc + 1)
+            self.operand_b = self.ram_read(self.pc + 2)
+            self.branch_table[f"{self.opcode}"]()
